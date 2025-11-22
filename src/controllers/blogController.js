@@ -2,6 +2,7 @@ const Blog = require('../models/Blog');
 const User = require('../models/User');
 const path = require('path');
 const fs = require('fs');
+const { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } = require('../services/cloudinaryService');
 
 // @desc    Get all published blogs (public)
 // @route   GET /api/blogs
@@ -245,11 +246,26 @@ const createBlog = async (req, res) => {
       });
     }
 
-    // Handle featured image
+    // Handle featured image - upload to Cloudinary
     let featuredImage = null;
     if (req.file) {
-      // Get the file path relative to the server
-      featuredImage = `/uploads/blog-images/${req.file.filename}`;
+      try {
+        // Upload to Cloudinary (filename generation is handled in the service)
+        const cloudinaryResult = await uploadToCloudinary(
+          req.file.buffer,
+          req.file.originalname,
+          'blog-images'
+        );
+        
+        featuredImage = cloudinaryResult.secure_url; // Use secure_url for HTTPS
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload image to Cloudinary',
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+      }
     }
 
     // Parse tags if it's a string
@@ -302,13 +318,8 @@ const createBlog = async (req, res) => {
   } catch (error) {
     console.error('Create blog error:', error);
     
-    // Delete uploaded file if blog creation fails
-    if (req.file) {
-      const filePath = path.join(__dirname, '../../uploads/blog-images', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
+    // Note: No need to delete from Cloudinary if blog creation fails
+    // since the image was already uploaded. Cloudinary has its own cleanup policies.
 
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
@@ -341,11 +352,28 @@ const updateBlog = async (req, res) => {
       });
     }
 
-    // Handle featured image update
-    let oldImagePath = null;
+    // Handle featured image update - upload to Cloudinary
+    let oldImageUrl = null;
     if (req.file) {
-      oldImagePath = blog.featuredImage;
-      blog.featuredImage = `/uploads/blog-images/${req.file.filename}`;
+      oldImageUrl = blog.featuredImage; // Store old image URL for deletion
+      
+      try {
+        // Upload to Cloudinary (filename generation is handled in the service)
+        const cloudinaryResult = await uploadToCloudinary(
+          req.file.buffer,
+          req.file.originalname,
+          'blog-images'
+        );
+        
+        blog.featuredImage = cloudinaryResult.secure_url; // Use secure_url for HTTPS
+      } catch (error) {
+        console.error('Cloudinary upload error:', error);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload image to Cloudinary',
+          error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        });
+      }
     }
 
     // Parse tags
@@ -381,11 +409,23 @@ const updateBlog = async (req, res) => {
 
     await blog.save();
 
-    // Delete old image if new image was uploaded
-    if (oldImagePath && req.file) {
-      const oldFilePath = path.join(__dirname, '../../', oldImagePath);
+    // Delete old image from Cloudinary if new image was uploaded
+    if (oldImageUrl && req.file && isCloudinaryUrl(oldImageUrl)) {
+      try {
+        await deleteFromCloudinary(oldImageUrl);
+      } catch (error) {
+        console.error('Failed to delete old image from Cloudinary:', error);
+        // Don't fail the request if deletion fails
+      }
+    } else if (oldImageUrl && req.file && !isCloudinaryUrl(oldImageUrl)) {
+      // Delete old local file if it exists (for backward compatibility)
+      const oldFilePath = path.join(__dirname, '../../', oldImageUrl);
       if (fs.existsSync(oldFilePath)) {
-        fs.unlinkSync(oldFilePath);
+        try {
+          fs.unlinkSync(oldFilePath);
+        } catch (error) {
+          console.error('Failed to delete old local image:', error);
+        }
       }
     }
 
@@ -399,13 +439,8 @@ const updateBlog = async (req, res) => {
   } catch (error) {
     console.error('Update blog error:', error);
 
-    // Delete uploaded file if update fails
-    if (req.file) {
-      const filePath = path.join(__dirname, '../../uploads/blog-images', req.file.filename);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
+    // Note: If update fails, the new image might already be uploaded to Cloudinary
+    // but the blog wasn't updated. This is acceptable as Cloudinary has cleanup policies.
 
     if (error.name === 'ValidationError') {
       const messages = Object.values(error.errors).map(err => err.message);
@@ -445,11 +480,26 @@ const deleteBlog = async (req, res) => {
       });
     }
 
-    // Delete associated image file
+    // Delete associated image from Cloudinary or local storage
     if (blog.featuredImage) {
-      const imagePath = path.join(__dirname, '../../', blog.featuredImage);
-      if (fs.existsSync(imagePath)) {
-        fs.unlinkSync(imagePath);
+      if (isCloudinaryUrl(blog.featuredImage)) {
+        // Delete from Cloudinary
+        try {
+          await deleteFromCloudinary(blog.featuredImage);
+        } catch (error) {
+          console.error('Failed to delete image from Cloudinary:', error);
+          // Continue with blog deletion even if image deletion fails
+        }
+      } else {
+        // Delete local file (for backward compatibility)
+        const imagePath = path.join(__dirname, '../../', blog.featuredImage);
+        if (fs.existsSync(imagePath)) {
+          try {
+            fs.unlinkSync(imagePath);
+          } catch (error) {
+            console.error('Failed to delete local image:', error);
+          }
+        }
       }
     }
 
