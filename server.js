@@ -7,9 +7,43 @@ require('dotenv').config();
 const app = express();
 
 // Middleware
+// CORS Configuration - Allow both development and production origins
+const allowedOrigins = [
+  'http://localhost:3002',
+  'http://localhost:3000',
+  'https://sashasmiles.com',
+  'https://www.sashasmiles.com'
+];
+
+// Helper to normalize origins (remove trailing slashes)
+const normalizeOrigin = (origin) => {
+  if (!origin) return null;
+  return origin.replace(/\/$/, '');
+};
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3002',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) return callback(null, true);
+    
+    const normalizedOrigin = normalizeOrigin(origin);
+    const normalizedAllowed = allowedOrigins.map(normalizeOrigin);
+    
+    // Check if origin is in allowed list
+    if (normalizedAllowed.includes(normalizedOrigin)) {
+      callback(null, true);
+    } else if (process.env.NODE_ENV === 'development' && origin.includes('localhost')) {
+      // In development, allow any localhost origin for flexibility
+      callback(null, true);
+    } else {
+      // Reject origin
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['Set-Cookie']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
