@@ -55,6 +55,17 @@ class EmailService {
         day: 'numeric'
       });
 
+      // Format time from preferredTime field (HH:MM format)
+      const formatTime = (timeString) => {
+        if (!timeString) return 'Not specified';
+        const [hours, minutes] = timeString.split(':');
+        const hour12 = parseInt(hours) % 12 || 12;
+        const ampm = parseInt(hours) >= 12 ? 'PM' : 'AM';
+        return `${hour12}:${minutes} ${ampm}`;
+      };
+
+      const formattedTime = formatTime(appointment.preferredTime);
+
       const mailOptions = {
         from: `"${process.env.EMAIL_FROM_NAME || 'Sasha Smiles'}" <${process.env.EMAIL_USER}>`,
         to: appointment.email,
@@ -100,7 +111,13 @@ class EmailService {
                     <span class="label">Phone:</span> ${appointment.phone}
                   </div>
                   <div class="info-row">
+                    <span class="label">Service:</span> ${appointment.service || 'Not specified'}
+                  </div>
+                  <div class="info-row">
                     <span class="label">Preferred Date:</span> ${formattedDate}
+                  </div>
+                  <div class="info-row">
+                    <span class="label">Preferred Time:</span> ${formattedTime}
                   </div>
                   ${appointment.message ? `
                   <div class="info-row">
@@ -111,7 +128,7 @@ class EmailService {
                 </div>
 
                 <p><strong>Status:</strong> <span style="color: #10b981; font-weight: bold;">Confirmed</span></p>
-                <p>We look forward to seeing you on ${formattedDate}. Please arrive 10 minutes before your scheduled appointment time. If you have any questions or need to make changes, please don't hesitate to contact us.</p>
+                <p>We look forward to seeing you on ${formattedDate} at ${formattedTime}. Please arrive 10 minutes before your scheduled appointment time. If you have any questions or need to make changes, please don't hesitate to contact us.</p>
                 
                 <p style="margin-top: 30px;">Best regards,<br>
                 <strong>The Sasha Smiles Team</strong></p>
@@ -134,12 +151,14 @@ class EmailService {
           - Name: ${appointment.fullName}
           - Email: ${appointment.email}
           - Phone: ${appointment.phone}
+          - Service: ${appointment.service || 'Not specified'}
           - Preferred Date: ${formattedDate}
+          - Preferred Time: ${formattedTime}
           ${appointment.message ? `- Message: ${appointment.message}` : ''}
           
           Status: Confirmed
           
-          We look forward to seeing you on ${formattedDate}. Please arrive 10 minutes before your scheduled appointment time.
+          We look forward to seeing you on ${formattedDate} at ${formattedTime}. Please arrive 10 minutes before your scheduled appointment time.
           
           Best regards,
           The Sasha Smiles Team
@@ -169,6 +188,17 @@ class EmailService {
         month: 'long',
         day: 'numeric'
       });
+
+      // Format time from preferredTime field (HH:MM format)
+      const formatTime = (timeString) => {
+        if (!timeString) return 'Not specified';
+        const [hours, minutes] = timeString.split(':');
+        const hour12 = parseInt(hours) % 12 || 12;
+        const ampm = parseInt(hours) >= 12 ? 'PM' : 'AM';
+        return `${hour12}:${minutes} ${ampm}`;
+      };
+
+      const formattedTime = formatTime(appointment.preferredTime);
 
       const mailOptions = {
         from: `"${process.env.EMAIL_FROM_NAME || 'Sasha Smiles'}" <${process.env.EMAIL_USER}>`,
@@ -211,7 +241,13 @@ class EmailService {
                     <span class="label">Phone:</span> ${appointment.phone}
                   </div>
                   <div class="info-row">
+                    <span class="label">Service:</span> ${appointment.service || 'Not specified'}
+                  </div>
+                  <div class="info-row">
                     <span class="label">Preferred Date:</span> ${formattedDate}
+                  </div>
+                  <div class="info-row">
+                    <span class="label">Preferred Time:</span> ${formattedTime}
                   </div>
                   ${appointment.message ? `
                   <div class="info-row">
@@ -240,7 +276,9 @@ class EmailService {
           Full Name: ${appointment.fullName}
           Email: ${appointment.email}
           Phone: ${appointment.phone}
+          Service: ${appointment.service || 'Not specified'}
           Preferred Date: ${formattedDate}
+          Preferred Time: ${formattedTime}
           ${appointment.message ? `Message: ${appointment.message}` : ''}
           Submitted: ${new Date(appointment.createdAt).toLocaleString()}
           
@@ -360,10 +398,16 @@ class EmailService {
         day: 'numeric'
       });
 
-      const formattedTime = new Date(appointment.preferredDate).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      // Format time from preferredTime field (HH:MM format)
+      const formatTime = (timeString) => {
+        if (!timeString) return 'Not specified';
+        const [hours, minutes] = timeString.split(':');
+        const hour12 = parseInt(hours) % 12 || 12;
+        const ampm = parseInt(hours) >= 12 ? 'PM' : 'AM';
+        return `${hour12}:${minutes} ${ampm}`;
+      };
+
+      const formattedTime = formatTime(appointment.preferredTime);
 
       // Status-specific content
       let statusInfo = {};
@@ -449,6 +493,9 @@ class EmailService {
                     <span class="label">Name:</span> ${appointment.fullName}
                   </div>
                   <div class="info-row">
+                    <span class="label">Service:</span> ${appointment.service || 'Not specified'}
+                  </div>
+                  <div class="info-row">
                     <span class="label">Date:</span> ${formattedDate}
                   </div>
                   <div class="info-row">
@@ -492,6 +539,7 @@ class EmailService {
           Appointment Details:
           - Appointment Number: ${appointment.appointmentNumber}
           - Name: ${appointment.fullName}
+          - Service: ${appointment.service || 'Not specified'}
           - Date: ${formattedDate}
           - Time: ${formattedTime}
           ${appointment.message ? `- Your Message: ${appointment.message}` : ''}
@@ -509,6 +557,113 @@ class EmailService {
     } catch (error) {
       console.error(`❌ Error sending status update email (${newStatus}):`, error);
       throw new Error(`Failed to send status update email: ${error.message}`);
+    }
+  }
+
+  async sendNewsletterBlog(blog, subscriberEmail) {
+    // Check if transporter is initialized
+    if (!this.transporter) {
+      throw new Error('Email service not configured. Please set EMAIL_USER and EMAIL_PASSWORD in .env');
+    }
+
+    try {
+      const blogUrl = `${process.env.FRONTEND_URL || 'https://sashasmiles.com'}/blog/${blog.slug}`;
+      const formattedDate = blog.publishedAt 
+        ? new Date(blog.publishedAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          })
+        : new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+
+      const mailOptions = {
+        from: `"${process.env.EMAIL_FROM_NAME || 'Sasha Smiles'}" <${process.env.EMAIL_USER}>`,
+        to: subscriberEmail,
+        subject: `New Blog Post: ${blog.title}`,
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, #A1D6FA 0%, #C9E8FB 52%, #EFF8FB 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: #ffffff; padding: 30px; border: 1px solid #e0e0e0; border-top: none; }
+              .blog-image { width: 100%; max-width: 100%; height: auto; border-radius: 10px; margin: 20px 0; }
+              .excerpt-box { background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #0067AC; }
+              .button { display: inline-block; padding: 12px 30px; background: #FF642F; color: white; text-decoration: none; border-radius: 25px; margin-top: 20px; }
+              .footer { background: #f8f9fa; padding: 20px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; color: #666; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1 style="color: #0067AC; margin: 0;">Sasha Smiles</h1>
+                <p style="color: #737B8C; margin: 10px 0 0 0;">New Blog Post</p>
+              </div>
+              <div class="content">
+                <h2 style="color: #0067AC;">New Blog Post Published!</h2>
+                <p>We're excited to share our latest blog post with you.</p>
+                
+                ${blog.featuredImage ? `
+                <img src="${blog.featuredImage}" alt="${blog.title}" class="blog-image" />
+                ` : ''}
+                
+                <h3 style="color: #0067AC; margin-top: 20px;">${blog.title}</h3>
+                <p style="color: #666; font-size: 14px; margin-bottom: 20px;">Published on ${formattedDate}</p>
+                
+                ${blog.excerpt ? `
+                <div class="excerpt-box">
+                  <p style="margin: 0; font-style: italic;">${blog.excerpt}</p>
+                </div>
+                ` : ''}
+                
+                <div style="text-align: center; margin: 30px 0;">
+                  <a href="${blogUrl}" class="button">Read Full Article</a>
+                </div>
+                
+                <p style="margin-top: 30px;">Thank you for subscribing to our newsletter!</p>
+                
+                <p style="margin-top: 30px;">Best regards,<br>
+                <strong>The Sasha Smiles Team</strong></p>
+              </div>
+              <div class="footer">
+                <p>This is an automated email. Please do not reply to this message.</p>
+                <p>If you no longer wish to receive these emails, please contact us.</p>
+                <p>&copy; ${new Date().getFullYear()} Sasha Smiles. All rights reserved.</p>
+              </div>
+            </div>
+          </body>
+          </html>
+        `,
+        text: `
+          New Blog Post: ${blog.title}
+          
+          We're excited to share our latest blog post with you.
+          
+          ${blog.title}
+          Published on ${formattedDate}
+          
+          ${blog.excerpt ? blog.excerpt : ''}
+          
+          Read the full article: ${blogUrl}
+          
+          Thank you for subscribing to our newsletter!
+          
+          Best regards,
+          The Sasha Smiles Team
+        `
+      };
+
+      const info = await this.transporter.sendMail(mailOptions);
+      return { success: true, messageId: info.messageId };
+    } catch (error) {
+      console.error('❌ Error sending newsletter email:', error);
+      throw new Error(`Failed to send newsletter email: ${error.message}`);
     }
   }
 

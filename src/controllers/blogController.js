@@ -1,8 +1,10 @@
 const Blog = require('../models/Blog');
 const User = require('../models/User');
+const Newsletter = require('../models/Newsletter');
 const path = require('path');
 const fs = require('fs');
 const { uploadToCloudinary, deleteFromCloudinary, isCloudinaryUrl } = require('../services/cloudinaryService');
+const emailService = require('../services/emailService');
 
 // @desc    Get all published blogs (public)
 // @route   GET /api/blogs
@@ -246,7 +248,7 @@ const createBlog = async (req, res) => {
       });
     }
 
-    // Handle featured image - upload to Cloudinary
+    // Handle featured image - upload to Cloudinary or use direct URL
     let featuredImage = null;
     if (req.file) {
       try {
@@ -266,6 +268,9 @@ const createBlog = async (req, res) => {
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
       }
+    } else if (req.body.featuredImageUrl && req.body.featuredImageUrl.trim()) {
+      // Use direct URL if provided
+      featuredImage = req.body.featuredImageUrl.trim();
     }
 
     // Parse tags if it's a string
@@ -307,6 +312,33 @@ const createBlog = async (req, res) => {
     }
 
     const blog = await Blog.create(blogData);
+
+    // Send newsletter email to active subscribers if blog is published
+    if (blog.status === 'published') {
+      try {
+        const activeSubscribers = await Newsletter.find({ isActive: true }).select('email');
+        console.log(`📧 Sending newsletter to ${activeSubscribers.length} subscribers...`);
+        
+        // Send emails in background (don't block the response)
+        Promise.all(
+          activeSubscribers.map(async (subscriber) => {
+            try {
+              await emailService.sendNewsletterBlog(blog, subscriber.email);
+            } catch (emailError) {
+              console.error(`Failed to send newsletter to ${subscriber.email}:`, emailError);
+              // Continue with other subscribers even if one fails
+            }
+          })
+        ).then(() => {
+          console.log(`✅ Newsletter emails sent to ${activeSubscribers.length} subscribers`);
+        }).catch((error) => {
+          console.error('Error sending newsletter emails:', error);
+        });
+      } catch (newsletterError) {
+        console.error('Error fetching subscribers for newsletter:', newsletterError);
+        // Don't fail the blog creation if newsletter sending fails
+      }
+    }
 
     res.status(201).json({
       success: true,
@@ -352,7 +384,7 @@ const updateBlog = async (req, res) => {
       });
     }
 
-    // Handle featured image update - upload to Cloudinary
+    // Handle featured image update - upload to Cloudinary or use direct URL
     let oldImageUrl = null;
     if (req.file) {
       oldImageUrl = blog.featuredImage; // Store old image URL for deletion
@@ -373,6 +405,16 @@ const updateBlog = async (req, res) => {
           message: 'Failed to upload image to Cloudinary',
           error: process.env.NODE_ENV === 'development' ? error.message : undefined
         });
+      }
+    } else if (req.body.featuredImageUrl !== undefined) {
+      // Update with direct URL if provided (empty string means remove image)
+      if (req.body.featuredImageUrl && req.body.featuredImageUrl.trim()) {
+        oldImageUrl = blog.featuredImage; // Store old image URL for deletion
+        blog.featuredImage = req.body.featuredImageUrl.trim();
+      } else {
+        // Remove image if empty string
+        oldImageUrl = blog.featuredImage;
+        blog.featuredImage = null;
       }
     }
 
@@ -402,9 +444,39 @@ const updateBlog = async (req, res) => {
     if (req.body.status) blog.status = req.body.status;
     if (req.body.metaDescription) blog.metaDescription = req.body.metaDescription;
 
-    // If status changed to published, set publishedAt
-    if (req.body.status === 'published' && blog.status === 'published' && !blog.publishedAt) {
-      blog.publishedAt = new Date();
+    // If status changed to published, set publishedAt and send newsletter
+    const wasDraft = blog.status === 'draft';
+    if (req.body.status === 'published') {
+      if (!blog.publishedAt) {
+        blog.publishedAt = new Date();
+      }
+      
+      // Send newsletter if status changed from draft to published
+      if (wasDraft) {
+        try {
+          const activeSubscribers = await Newsletter.find({ isActive: true }).select('email');
+          console.log(`📧 Sending newsletter to ${activeSubscribers.length} subscribers...`);
+          
+          // Send emails in background (don't block the response)
+          Promise.all(
+            activeSubscribers.map(async (subscriber) => {
+              try {
+                await emailService.sendNewsletterBlog(blog, subscriber.email);
+              } catch (emailError) {
+                console.error(`Failed to send newsletter to ${subscriber.email}:`, emailError);
+                // Continue with other subscribers even if one fails
+              }
+            })
+          ).then(() => {
+            console.log(`✅ Newsletter emails sent to ${activeSubscribers.length} subscribers`);
+          }).catch((error) => {
+            console.error('Error sending newsletter emails:', error);
+          });
+        } catch (newsletterError) {
+          console.error('Error fetching subscribers for newsletter:', newsletterError);
+          // Don't fail the blog update if newsletter sending fails
+        }
+      }
     }
 
     await blog.save();

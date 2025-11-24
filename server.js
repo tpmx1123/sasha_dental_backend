@@ -103,6 +103,8 @@ const authRoutes = require('./src/routes/authRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const blogRoutes = require('./src/routes/blogRoutes');
 const adminBlogRoutes = require('./src/routes/adminBlogRoutes');
+const newsletterRoutes = require('./src/routes/newsletterRoutes');
+const adminNewsletterRoutes = require('./src/routes/adminNewsletterRoutes');
 
 // Mount routes
 app.use('/api/appointments', appointmentRoutes);
@@ -110,6 +112,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/admin/blogs', adminBlogRoutes);
+app.use('/api/newsletter', newsletterRoutes);
+app.use('/api/admin/newsletter', adminNewsletterRoutes);
 
 // 404 handler (must be after all routes)
 app.use((req, res) => {
