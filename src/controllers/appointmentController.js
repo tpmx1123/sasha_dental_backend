@@ -1,5 +1,6 @@
 const Appointment = require('../models/Appointment');
 const emailService = require('../services/emailService');
+const telecrmService = require('../services/telecrmService');
 
 // @desc    Create a new appointment
 // @route   POST /api/appointments
@@ -87,6 +88,14 @@ const createAppointment = async (req, res) => {
     } catch (emailError) {
       console.error('Admin notification email failed:', emailError);
       // Don't fail the request if email fails
+    }
+
+    // Send lead to TeleCRM (fire-and-forget)
+    try {
+      await telecrmService.createLead(appointment);
+    } catch (telecrmError) {
+      console.error('Failed to send lead to TeleCRM:', telecrmError);
+      // Don't fail the request if TeleCRM fails
     }
 
     res.status(201).json({
