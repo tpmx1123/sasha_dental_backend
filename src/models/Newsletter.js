@@ -22,7 +22,7 @@ const newsletterSchema = new mongoose.Schema({
 });
 
 // Index for better query performance
-newsletterSchema.index({ email: 1 });
+// Note: email index is automatically created by unique: true, so we don't duplicate it
 newsletterSchema.index({ isActive: 1 });
 newsletterSchema.index({ subscribedAt: -1 });
 

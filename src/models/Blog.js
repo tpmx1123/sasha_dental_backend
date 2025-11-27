@@ -97,7 +97,7 @@ blogSchema.pre('save', async function(next) {
 });
 
 // Index for better query performance
-blogSchema.index({ slug: 1 });
+// Note: slug index is automatically created by unique: true, so we don't duplicate it
 blogSchema.index({ status: 1, publishedAt: -1 });
 blogSchema.index({ category: 1 });
 blogSchema.index({ author: 1 });
