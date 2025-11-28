@@ -278,7 +278,7 @@ class TeleCRMService {
           phone: this.formatPhoneNumber(appointment.phone),
           email: appointment.email,
           appointment_date_and_time: appointmentDateTime,
-          lead_source: process.env.TELECRM_LEAD_SOURCE || 'sashasmiles.com'
+          lead_source: process.env.TELECRM_LEAD_SOURCE || 'SashaDental-webform'
         }
       };
 
